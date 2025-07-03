@@ -1,10 +1,12 @@
 ---
-title: Google CTF 2025 Java Safe 6.0 WP
-published: 2025-7-03
-description: 捏🐎，可恶的 JavaScriptd
+title: Google_CTF_2025_Java_Safe_6.0
+published: 2025-07-03
+description: '捏🐎，可恶的 JavaScriptd'
+image: ''
 tags: [Web, JavaScript, debug]
-category: WP
-draft: false
+category: 'WP'
+draft: false 
+lang: ''
 ---
 # Google CTF 2025 Java Safe 6.0 WP 
 ### 题目简单分析
