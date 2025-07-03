@@ -18,16 +18,16 @@ lang: ''
 
 
 ### 思路
-题目的核心代码在 `anti()` 内
-`anti()` 内前面注册了几个变量和函数到 `windows` 对象中
-这一段非常凶险，有一些不可见字符:
+题目的核心代码在 `anti()` 内  
+`anti()` 内前面注册了几个变量和函数到 `windows` 对象中  
+这一段非常凶险，有一些不可见字符:  
 ![](image/2025-07-02-11-24-34.png)
-这一段代码由于不可见字符,`rot13` 功能的代码实际是执行了的
-
-`anti()` 中这个函数进行了插桩和反调试
-前面的 debug 功能是监控了JavaScript的核心内置对象，统计调用函数时使用的函数名长度，这个地方会影响 `window.step`
-后面的 debug 会检测代码的总长，是反调试点，可以直接改成 `debug(f, "false");`
-这个函数对下面的方法调用都会进行监控：
+这一段代码由于不可见字符,`rot13` 功能的代码实际是执行了的  
+  
+`anti()` 中这个函数进行了插桩和反调试  
+前面的 debug 功能是监控了JavaScript的核心内置对象，统计调用函数时使用的函数名长度，这个地方会影响 `window.step`  
+后面的 debug 会检测代码的总长，是反调试点，可以直接改成 `debug(f, "false");`  
+这个函数对下面的方法调用都会进行监控：  
 ```
 Array：数组构造函数和所有数组方法（push, pop, splice等）
 String.prototype：所有字符串方法（replace, split, charAt等）
@@ -53,9 +53,9 @@ function instrument() {
 ).flat().concat(check, eval).forEach(instrument);
 ```
 
-下面的这段代码监控了 `Array.prototype` 的所有属性访问和反射操作
-Array.prototype是一个特殊的对象，它包含了所有数组都可以使用的方法和属性
-有这两种操作都会使 `window.step` 改变
+下面的这段代码监控了 `Array.prototype` 的所有属性访问和反射操作  
+Array.prototype是一个特殊的对象，它包含了所有数组都可以使用的方法和属性  
+有这两种操作都会使 `window.step` 改变  
 
 ```java
 function instrumentPrototype(o) {
@@ -76,7 +76,7 @@ instrumentPrototype(Array.prototype);
 instrumentPrototypeOfPrototype(Array.prototype);
 ```
 
-值得注意的是，插桩的时候有这样的三行代码顺序
+值得注意的是，插桩的时候有这样的三行代码顺序  
 ```java
 [Array, Array.prototype, String.prototype, Math, console, Reflect].map(o =>
     Object.values(Object.getOwnPropertyDescriptors(o)).map(x => x.value || x.get).filter(x => x instanceof Function) 
@@ -84,15 +84,15 @@ instrumentPrototypeOfPrototype(Array.prototype);
 instrumentPrototype(Array.prototype);
 instrumentPrototypeOfPrototype(Array.prototype);
 ```
-在执行第一行代码之后，使用 `debug` 对 `Array, Array.prototype, String.prototype, Math, console, Reflect` 这几个对象进行插桩，这对其进行了一定的保护，确保了调用这几个对象的方法可以正常返回方法的引用
-
-这样在执行第二行代码时，其返回引用错误的问题就会得到修复
-这行代码`get: () => (step++) && p[1].value`正确应该写为`get: () => (++step) && p[1].value`
-
-这样第三行代码就不会报 `forEach` 方法不存在的错误
-
-可以通过下面的这段代码验证上面的问题：
-可以发现方法被改成了 number 而不是原来的 function
+在执行第一行代码之后，使用 `debug` 对 `Array, Array.prototype, String.prototype, Math, console, Reflect` 这几个对象进行插桩，这对其进行了一定的保护，确保了调用这几个对象的方法可以正常返回方法的引用  
+  
+这样在执行第二行代码时，其返回引用错误的问题就会得到修复  
+这行代码`get: () => (step++) && p[1].value`正确应该写为`get: () => (++step) && p[1].value`  
+  
+这样第三行代码就不会报 `forEach` 方法不存在的错误  
+  
+可以通过下面的这段代码验证上面的问题：  
+可以发现方法被改成了 number 而不是原来的 function  
 
 ```html
 <!DOCTYPE html>
@@ -160,16 +160,14 @@ instrumentPrototypeOfPrototype(Array.prototype);
 ```
 check_csp.html:14 Refused to execute inline script because it violates the following Content Security Policy directive: "script-src 'self' 'sha256-3i8iW/rI619vFLSOcIVx6lQ6gE8pFVpeQMLriw/zs/E=' 'unsafe-eval'". Either the 'unsafe-inline' keyword, a hash ('sha256-HFum26eAoDvh1Va9Zg6EMtw4z91mrmX2KhzBTA34JLQ='), or a nonce ('nonce-...') is required to enable inline execution.
 ```
-这是浏览器的一个 CSP 防护机制
-你把他给你计算的 sha256 覆盖这个标签 `<meta http-equiv="Content-Security-Policy" id="c" content="script-src 'self' 'sha256-HFum26eAoDvh1Va9Zg6EMtw4z91mrmX2KhzBTA34JLQ=' 'unsafe-eval'">`中的sha256就不会报错了（题目中有两段 script 可以将第二段的粘贴到第一段，看报错来计算 sha256）
-这也是这个题目的一个坑点，这个 CSP 防护也会确保方法返回正确的引用，在你取消上面测试代码的注释内容后，如果你删除标签，你会发现，这个方法又被改成了 number 而不是原来的 function
-
-这时候可能会问：那我把开头的标签删除了，后面的插桩再改成 `++step` 是不是就可以了？额，比赛的时候就是卡在这里了，
-
-也不行！这个这样修改还是会使 `forEach` 方法在某一段时间变成 `number` 会影响 `step` 的变化
-
-所以我们应该使用改动最小的方法，来记录输出 `check` 函数中，`pool` 的取值
-
+这是浏览器的一个 CSP 防护机制  
+你把他给你计算的 sha256 覆盖这个标签 `<meta http-equiv="Content-Security-Policy" id="c" content="script-src 'self' 'sha256-HFum26eAoDvh1Va9Zg6EMtw4z91mrmX2KhzBTA34JLQ=' 'unsafe-eval'">`中的sha256就不会报错了（题目中有两段 script 可以将第二段的粘贴到第一段，看报错来计算 sha256）  
+这也是这个题目的一个坑点，这个 CSP 防护也会确保方法返回正确的引用，在你取消上面测试代码的注释内容后，如果你删除标签，你会发现，这个方法又被改成了 number 而不是原来的 function  
+  
+这时候可能会问：那我把开头的标签删除了，后面的插桩再改成 `++step` 是不是就可以了？额，比赛的时候就是卡在这里了，也不行！这个这样修改还是会使 `forEach` 方法在某一段时间变成 `number` 会影响 `step` 的变化  
+  
+所以我们应该使用改动最小的方法，来记录输出 `check` 函数中，`pool` 的取值  
+  
 ### 最终解法
 参考群内大佬：
 ```html
@@ -513,4 +511,5 @@ ant(debug)
 unlock('CTF{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}')
 window.ansflag
 ```
-捏🐎，可恶的 JavaScript ，薛定谔的变量，最后那个 forEach 受到哪些因素影响还是没有搞很清楚，变来变去的
+答案是：`1M_4_C7F_p14y32_4N71_d38U9_721cK5_d0n7_w02K_0n_m3`  
+捏🐎，可恶的 JavaScript ，薛定谔的变量，最后那个 forEach 受到哪些因素影响还是没有搞很清楚，变来变去的  
